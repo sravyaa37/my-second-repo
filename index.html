@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Personal Analytics Dashboard — Single File</title>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --muted:#9aa4b2; --accent:#60a5fa; --glass: rgba(255,255,255,0.03);
+      --radius:12px; --gap:18px; color-scheme: dark;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%; margin:0; font-family:Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background:linear-gradient(180deg,#071020 0%, #071020 60%); color:#e6eef8}
+    .app{display:grid; grid-template-columns:260px 1fr; gap:var(--gap); padding:22px;}
+    /* Sidebar */
+    .sidebar{background:var(--card); border-radius:var(--radius); padding:18px; min-height:calc(100vh - 44px);}
+    .logo{font-weight:700; letter-spacing:0.6px; display:flex; gap:12px; align-items:center}
+    .logo .dot{width:34px;height:34px;border-radius:8px;background:linear-gradient(90deg,var(--accent),#7dd3fc);display:inline-block}
+    .nav{margin-top:22px; display:flex; flex-direction:column; gap:10px}
+    .nav button{background:transparent;border:0;padding:10px 12px;border-radius:8px;color:var(--muted);text-align:left;cursor:pointer}
+    .nav button.active{background:linear-gradient(90deg, rgba(96,165,250,0.14), rgba(125,211,252,0.06)); color:#e6eef8}
+    .profile{margin-top:auto; display:flex; gap:12px; align-items:center}
+    .avatar{width:44px;height:44px;border-radius:10px;background:linear-gradient(180deg,#1f2937,#111827);display:flex;align-items:center;justify-content:center;font-weight:700}
+
+    /* Main */
+    .main{display:flex;flex-direction:column; gap:18px}
+    .header{display:flex;align-items:center;justify-content:space-between}
+    .search{display:flex;gap:8px; align-items:center; background:var(--glass); padding:8px 12px; border-radius:12px}
+    input.search-input{background:transparent;border:0; color:inherit; outline:none}
+    .kpis{display:flex; gap:14px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); padding:14px; border-radius:12px; flex:1; min-width:0}
+    .kpi-value{font-size:20px;font-weight:700}
+    .kpi-label{color:var(--muted); font-size:13px}
+
+    .grid{display:grid; grid-template-columns: 2fr 1fr; gap:14px}
+    .chart-wrap{padding:14px}
+    .small-cards{display:flex;flex-direction:column;gap:12px}
+
+    table{width:100%; border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,0.03); text-align:left}
+    th{color:var(--muted);font-size:13px}
+    td .t-muted{color:var(--muted); font-size:13px}
+
+    /* Responsive */
+    @media (max-width:900px){.app{grid-template-columns:1fr; padding:12px}.sidebar{display:none}.grid{grid-template-columns:1fr}}
+
+    /* Tiny helpers */
+    .muted{color:var(--muted)}
+    .row{display:flex;align-items:center;justify-content:space-between}
+    .btn{background:var(--accent); padding:8px 12px;border-radius:10px;border:0;color:#012; font-weight:700;cursor:pointer}
+    .chip{background:rgba(255,255,255,0.03); padding:6px 8px;border-radius:999px;font-size:13px}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="logo"><span class="dot"></span>Personal Analytics</div>
+      <div class="nav">
+        <button class="active">Overview</button>
+        <button>Sales</button>
+        <button>Users</button>
+        <button>Settings</button>
+      </div>
+      <div class="profile" style="margin-top:20px">
+        <div class="avatar">PS</div>
+        <div>
+          <div style="font-weight:700">Priya Sharma</div>
+          <div class="muted" style="font-size:13px">Owner · Member since 2023</div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="header">
+        <div>
+          <h2 style="margin:0">Overview</h2>
+          <div class="muted">Summary of personal analytics and sample KPIs</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 21L15.8 15.8M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg><input class="search-input" placeholder="Search reports, users..."/></div>
+          <button class="btn" id="downloadCSV">Export CSV</button>
+        </div>
+      </div>
+
+      <div class="kpis">
+        <div class="card">
+          <div class="row"><div>
+            <div class="kpi-value" id="kpi-sessions">12,482</div>
+            <div class="kpi-label">Sessions</div>
+          </div>
+          <div class="chip">+8.4%</div></div>
+        </div>
+        <div class="card">
+          <div class="row"><div>
+            <div class="kpi-value" id="kpi-users">4,109</div>
+            <div class="kpi-label">Active Users</div>
+          </div>
+          <div class="chip">+4.1%</div></div>
+        </div>
+        <div class="card">
+          <div class="row"><div>
+            <div class="kpi-value" id="kpi-rev">₹98,420</div>
+            <div class="kpi-label">Monthly Revenue</div>
+          </div>
+          <div class="chip">Stable</div></div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div>
+          <div class="card chart-wrap">
+            <div class="row" style="margin-bottom:8px"><strong>Traffic (last 12 months)</strong><div class="muted">Visitors and conversions</div></div>
+            <canvas id="trafficChart" height="140"></canvas>
+          </div>
+
+          <div class="card" style="margin-top:12px">
+            <div class="row" style="margin-bottom:8px"><strong>Recent activity</strong><div class="muted">Latest events</div></div>
+            <table>
+              <thead><tr><th>User</th><th>Action</th><th>Date</th><th>Value</th></tr></thead>
+              <tbody id="activityTable">
+                <!-- rows populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <aside class="small-cards">
+          <div class="card">
+            <div class="row" style="margin-bottom:8px"><strong>User breakdown</strong><div class="muted">By segment</div></div>
+            <canvas id="donutChart" height="180"></canvas>
+          </div>
+
+          <div class="card">
+            <div class="row" style="margin-bottom:8px"><strong>Top pages</strong><div class="muted">By sessions</div></div>
+            <ol id="topPages" style="padding-left:18px;margin:0">
+              <!-- JS fills -->
+            </ol>
+          </div>
+        </aside>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    // ---------- Sample data (can be replaced by API fetch) ----------
+    const monthly = { labels: ['Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep'],
+      visitors: [820, 940, 1020, 1200, 980, 1100, 1250, 1400, 1330, 1500, 1480, 1540],
+      conversions: [42, 55, 48, 60, 50, 65, 82, 95, 90, 100, 98, 110]
+    };
+
+    const activities = [
+      {user:'Asha', action:'Purchased', date:'2025-09-12', value:'₹4,999'},
+      {user:'Ravi', action:'Signed up', date:'2025-09-11', value:'—'},
+      {user:'Leela', action:'Upgraded plan', date:'2025-09-08', value:'₹1,499'},
+      {user:'Sanjay', action:'Cancelled', date:'2025-09-05', value:'—'},
+      {user:'Neha', action:'Referral', date:'2025-09-02', value:'₹0'}
+    ];
+
+    const segments = {labels:['Free','Basic','Pro','Enterprise'], values:[2400,1100,450,159]};
+    const topPages = [ {page:'/home', visits:5200}, {page:'/pricing', visits:2100}, {page:'/blog', visits:1700}, {page:'/contact', visits:900} ];
+
+    // ---------- Populate table and list ----------
+    const tbody = document.getElementById('activityTable');
+    activities.forEach(a=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td><strong>${a.user}</strong><div class=\"t-muted\">${a.user.toLowerCase()}@example.com</div></td><td>${a.action}</td><td class=\"t-muted\">${a.date}</td><td>${a.value}</td>`;
+      tbody.appendChild(tr);
+    });
+
+    const topEl = document.getElementById('topPages');
+    topPages.forEach(p => { const li = document.createElement('li'); li.innerHTML = `<strong>${p.page}</strong> <span class=\"t-muted\">— ${p.visits} sessions</span>`; topEl.appendChild(li); });
+
+    // ---------- Charts ----------
+    const trafficCtx = document.getElementById('trafficChart').getContext('2d');
+    const trafficChart = new Chart(trafficCtx, {
+      type:'line',
+      data:{ labels: monthly.labels, datasets:[
+        {label:'Visitors', data: monthly.visitors, tension:0.35, fill:true, backgroundColor: (ctx)=>{return gradient(ctx.chart, 0, 'rgba(96,165,250,0.12)')}, borderColor:'#60a5fa', pointRadius:3},
+        {label:'Conversions', data: monthly.conversions, tension:0.35, borderDash:[6,4], borderColor:'#a78bfa', pointRadius:2}
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{labels:{color:'#cfe7ff'}}}, scales:{ x:{ ticks:{color:'#9aa4b2'} }, y:{ ticks:{color:'#9aa4b2'} } }
+      }
+    });
+
+    const donutCtx = document.getElementById('donutChart').getContext('2d');
+    const donutChart = new Chart(donutCtx, {
+      type:'doughnut', data:{ labels: segments.labels, datasets:[{data:segments.values}]}, options:{ plugins:{legend:{position:'bottom', labels:{color:'#cfe7ff'}}}, cutout:'60%'
+      }
+    });
+
+    // gradient helper
+    function gradient(chart, angle=0, color){
+      const ctx = chart.ctx; const w = chart.width; const h = chart.height;
+      const g = ctx.createLinearGradient(0,0,w, h); g.addColorStop(0, color); g.addColorStop(1, 'rgba(96,165,250,0.02)'); return g;
+    }
+
+    // ---------- CSV export of activities ----------
+    function toCSV(objArray){
+      const header = Object.keys(objArray[0]).join(',') + '\n';
+      const rows = objArray.map(o=>Object.values(o).map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+      return header + rows;
+    }
+    document.getElementById('downloadCSV').addEventListener('click', ()=>{
+      const csv = toCSV(activities);
+      const blob = new Blob([csv], {type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'activities.csv'; a.click(); URL.revokeObjectURL(url);
+    });
+
+    // ---------- Small interactivity: update KPIs simple demo ----------
+    function updateKPIs(){
+      const sessions = monthly.visitors.reduce((s,x)=>s+x,0);
+      const users = Math.round(sessions * 0.33);
+      const revenue = (users * 12.5).toFixed(0);
+      document.getElementById('kpi-sessions').textContent = sessions.toLocaleString();
+      document.getElementById('kpi-users').textContent = users.toLocaleString();
+      document.getElementById('kpi-rev').textContent = '₹' + Number(revenue).toLocaleString();
+    }
+    updateKPIs();
+
+    // ---------- Simple live filter for search box (filters top pages) ----------
+    document.querySelector('.search-input').addEventListener('input', (e)=>{
+      const q = e.target.value.toLowerCase();
+      document.querySelectorAll('#topPages li').forEach(li=>{ li.style.display = li.textContent.toLowerCase().includes(q)?'list-item':'none'; });
+    });
+
+    // ---------- Make charts responsive on resize (tiny tweak) ----------
+    window.addEventListener('resize', ()=>{ trafficChart.resize(); donutChart.resize(); });
+
+    // ---------- Placeholder: how to replace data with API ----------
+    /*
+      To use real data, replace the sample arrays above with a fetch request:
+      fetch('/api/overview').then(r=>r.json()).then(data => { // map to our arrays & call chart.update() }
+    */
+  </script>
+</body>
+</html>
