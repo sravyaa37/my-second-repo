@@ -1,1 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Blood Donation Dashboard — Single File</title>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root{ --bg:#0b1220; --card:#0f1724; --muted:#9aa4b2; --accent:#ef4444; --accent-2:#f97316; --glass: rgba(255,255,255,0.02); --radius:12px; color-scheme: dark }
+    *{box-sizing:border-box}
+    html,body{height:100%; margin:0; font-family:Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial; background:linear-gradient(180deg,#06070a 0%, #071224 80%); color:#e6eef8}
+    .app{display:grid; grid-template-columns:240px 1fr; gap:18px; padding:22px}
+    .sidebar{background:var(--card); border-radius:var(--radius); padding:16px; min-height:calc(100vh - 44px)}
+    .logo{font-weight:800; display:flex; gap:10px; align-items:center}
+    .logo .mark{width:36px;height:36px;border-radius:8px;background:linear-gradient(180deg,var(--accent),#f43f5e);display:inline-block}
+    .nav{margin-top:18px; display:flex; flex-direction:column; gap:8px}
+    .nav button{background:transparent;border:0;padding:10px;border-radius:8px;color:var(--muted); text-align:left;cursor:pointer}
+    .nav button.active{background:linear-gradient(90deg, rgba(244,67,54,0.12), rgba(249,115,22,0.06)); color:#fff}
+    .sidebar .info{margin-top:18px; color:var(--muted); font-size:13px}
+
+    .main{display:flex;flex-direction:column;gap:14px}
+    .header{display:flex;align-items:center;justify-content:space-between}
+    .search{display:flex;gap:8px; align-items:center; background:var(--glass); padding:8px 12px; border-radius:12px}
+    input.search-input{background:transparent;border:0; color:inherit; outline:none}
+
+    .kpis{display:flex; gap:12px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); padding:14px; border-radius:12px; flex:1; min-width:0}
+    .kpi-value{font-size:20px;font-weight:700}
+    .kpi-label{color:var(--muted); font-size:13px}
+
+    .grid{display:grid; grid-template-columns:2fr 1fr; gap:14px}
+    .chart-wrap{padding:14px}
+    .small-cards{display:flex;flex-direction:column;gap:12px}
+
+    table{width:100%; border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,0.03); text-align:left}
+    th{color:var(--muted);font-size:13px}
+
+    .btn{background:var(--accent); padding:8px 12px;border-radius:10px;border:0;color:#fff; font-weight:700;cursor:pointer}
+    .chip{background:rgba(255,255,255,0.03); padding:6px 8px;border-radius:999px;font-size:13px}
+
+    @media (max-width:960px){.app{grid-template-columns:1fr;padding:12px}.sidebar{display:none}.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="logo"><span class="mark"></span>BloodCare</div>
+      <div class="nav">
+        <button class="active">Dashboard</button>
+        <button>Donors</button>
+        <button>Drives</button>
+        <button>Inventory</button>
+        <button>Settings</button>
+      </div>
+
+      <div class="info">
+        <div style="margin-top:12px">Next drive: <strong>Sep 28, 2025</strong></div>
+        <div style="margin-top:8px">Location: Community Hall</div>
+        <div style="margin-top:10px"><button class="btn" id="registerDonorBtn">Register Donor</button></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="header">
+        <div>
+          <h2 style="margin:0">Blood Donation Dashboard</h2>
+          <div style="color:var(--muted); font-size:13px">Overview of donors, inventory and upcoming drives</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 21L15.8 15.8M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg><input class="search-input" placeholder="Search donors, blood group..."/></div>
+          <button class="btn" id="exportCSV">Export Donors</button>
+        </div>
+      </div>
+
+      <div class="kpis">
+        <div class="card">
+          <div class="row"><div>
+            <div class="kpi-value" id="kpi-donors">3,482</div>
+            <div class="kpi-label">Registered Donors</div>
+          </div>
+          <div class="chip" id="chip-new">+24 this week</div></div>
+        </div>
+        <div class="card">
+          <div class="row"><div>
+            <div class="kpi-value" id="kpi-units">1,220</div>
+            <div class="kpi-label">Units in Inventory</div>
+          </div>
+          <div class="chip" id="chip-critical">AB- low</div></div>
+        </div>
+        <div class="card">
+          <div class="row"><div>
+            <div class="kpi-value" id="kpi-drives">6</div>
+            <div class="kpi-label">Drives this year</div>
+          </div>
+          <div class="chip">Upcoming</div></div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div>
+          <div class="card chart-wrap">
+            <div class="row" style="margin-bottom:8px"><strong>Donations (last 12 months)</strong><div style="color:var(--muted)">Units collected per month</div></div>
+            <canvas id="donationsChart" height="160"></canvas>
+          </div>
+
+          <div class="card" style="margin-top:12px">
+            <div class="row" style="margin-bottom:8px"><strong>Recent donors</strong><div style="color:var(--muted)">Latest registered donors</div></div>
+            <table>
+              <thead><tr><th>Name</th><th>Blood Group</th><th>Last Donation</th><th>Status</th></tr></thead>
+              <tbody id="donorTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <aside class="small-cards">
+          <div class="card">
+            <div class="row" style="margin-bottom:8px"><strong>Inventory by blood group</strong><div style="color:var(--muted)">Units available</div></div>
+            <canvas id="stockChart" height="180"></canvas>
+          </div>
+
+          <div class="card">
+            <div class="row" style="margin-bottom:8px"><strong>Upcoming drives</strong><div style="color:var(--muted)">Next events</div></div>
+            <ol id="drivesList" style="margin:0;padding-left:18px"></ol>
+          </div>
+        </aside>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Simple modal for registering a donor (client-side demo) -->
+  <div id="modal" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)">
+    <div style="background:var(--card);padding:18px;border-radius:12px;width:420px;max-width:92%">
+      <h3 style="margin-top:0">Register Donor</h3>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input id="d_name" placeholder="Full name" style="padding:10px;border-radius:8px;border:0;background:rgba(255,255,255,0.02);color:inherit" />
+        <input id="d_group" placeholder="Blood group (e.g. A+)" style="padding:10px;border-radius:8px;border:0;background:rgba(255,255,255,0.02);color:inherit" />
+        <input id="d_date" placeholder="Last donation date (YYYY-MM-DD)" style="padding:10px;border-radius:8px;border:0;background:rgba(255,255,255,0.02);color:inherit" />
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
+          <button id="modalCancel" class="btn" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)">Cancel</button>
+          <button id="modalSave" class="btn">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- Sample data ----------
+    const monthly = { labels:['Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep'], donations:[80, 92, 70, 110, 95, 120, 130, 140, 128, 150, 142, 156] };
+    const inventory = { labels:['A+','A-','B+','B-','O+','O-','AB+','AB-'], values:[240,80,200,60,320,100,90,20] };
+    const donors = [
+      {name:'Asha Rao', group:'O+', last:'2025-08-20', status:'Eligible'},
+      {name:'Vikram Iyer', group:'A+', last:'2025-07-11', status:'Defer'},
+      {name:'Maya Kapoor', group:'B+', last:'2025-09-05', status:'Eligible'},
+      {name:'Rohit Singh', group:'AB-', last:'2025-06-02', status:'Low Hb'},
+      {name:'Sana Mir', group:'O-', last:'2025-09-10', status:'Eligible'}
+    ];
+    const drives = [ {date:'2025-09-28', place:'Community Hall'}, {date:'2025-11-14', place:'City Mall'}, {date:'2026-01-10', place:'College Campus'} ];
+
+    // ---------- Populate donor table & drives ----------
+    const tbody = document.getElementById('donorTable');
+    function renderDonors(list){ tbody.innerHTML=''; list.forEach(d=>{ const tr = document.createElement('tr'); tr.innerHTML = `<td><strong>${d.name}</strong><div style=\"color:var(--muted);font-size:13px\">${d.name.toLowerCase().split(' ').join('.')}@example.com</div></td><td>${d.group}</td><td style=\"color:var(--muted)\">${d.last}</td><td>${d.status}</td>`; tbody.appendChild(tr); }); }
+    renderDonors(donors);
+
+    const drivesList = document.getElementById('drivesList'); drives.forEach(d=>{ const li=document.createElement('li'); li.innerHTML=`<strong>${d.date}</strong> — ${d.place}`; drivesList.appendChild(li); });
+
+    // ---------- Charts ----------
+    const donationsCtx = document.getElementById('donationsChart').getContext('2d');
+    const donationsChart = new Chart(donationsCtx, { type:'bar', data:{ labels: monthly.labels, datasets:[{label:'Units', data: monthly.donations, borderRadius:6}] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ ticks:{color:'#9aa4b2'} }, y:{ ticks:{color:'#9aa4b2'} } } } });
+
+    const stockCtx = document.getElementById('stockChart').getContext('2d');
+    const stockChart = new Chart(stockCtx, { type:'pie', data:{ labels: inventory.labels, datasets:[{data: inventory.values}] }, options:{ plugins:{legend:{position:'bottom', labels:{color:'#cfe7ff'}}} } });
+
+    // ---------- KPI calculation ----------
+    function updateKPIs(){ document.getElementById('kpi-donors').textContent = donors.length.toLocaleString(); document.getElementById('kpi-units').textContent = inventory.values.reduce((s,v)=>s+v,0); document.getElementById('kpi-drives').textContent = drives.length; const low = inventory.labels[inventory.values.indexOf(Math.min(...inventory.values))]; document.getElementById('chip-critical').textContent = low + ' low'; }
+    updateKPIs();
+
+    // ---------- Search filter (donors by name or group) ----------
+    document.querySelector('.search-input').addEventListener('input', (e)=>{ const q=e.target.value.toLowerCase(); renderDonors(donors.filter(d=>d.name.toLowerCase().includes(q) || d.group.toLowerCase().includes(q))); });
+
+    // ---------- CSV export ----------
+    function toCSV(arr){ if(!arr.length) return ''; const header = Object.keys(arr[0]).join(',') + '\n'; const rows = arr.map(o=>Object.values(o).map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n'); return header + rows; }
+    document.getElementById('exportCSV').addEventListener('click', ()=>{ const csv = toCSV(donors); const blob = new Blob([csv], {type:'text/csv'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='donors.csv'; a.click(); URL.revokeObjectURL(url); });
+
+    // ---------- Modal register donor ----------
+    const modal = document.getElementById('modal'); document.getElementById('registerDonorBtn').addEventListener('click', ()=>{ modal.style.display='flex'; });
+    document.getElementById('modalCancel').addEventListener('click', ()=>{ modal.style.display='none'; });
+    document.getElementById('modalSave').addEventListener('click', ()=>{
+      const name = document.getElementById('d_name').value.trim(); const group = document.getElementById('d_group').value.trim(); const last = document.getElementById('d_date').value.trim() || new Date().toISOString().slice(0,10);
+      if(!name || !group){ alert('Please enter name and blood group'); return; }
+      const newDonor = {name, group, last, status:'Eligible'}; donors.unshift(newDonor); renderDonors(donors); updateKPIs(); // update charts/inventory in a real app
+      modal.style.display='none'; document.getElementById('d_name').value=''; document.getElementById('d_group').value=''; document.getElementById('d_date').value='';
+    });
+
+    // ---------- Small accessibility/responsive tweaks ----------
+    window.addEventListener('resize', ()=>{ donationsChart.resize(); stockChart.resize(); });
+
+    // ---------- Placeholder for replacing sample data with real API ----------
+    /*
+      fetch('/api/blood/overview').then(r=>r.json()).then(data=>{ // map API fields to monthly, inventory, donors, drives and call chart.update() & renderDonors()
+      });
+    */
+  </script>
+</body>
+</html>
 
